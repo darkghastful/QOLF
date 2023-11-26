@@ -1,0 +1,883 @@
+# Various Functions
+
+## Unlist Unname
+
+```{r Unlist Unname}
+uln <- function(string){
+  return(unname(unlist(string)))
+}
+```
+
+## Unique Unlist Unname
+
+```{r Unlist Unname}
+uuln <- function(string){
+  return(unique(unname(unlist(string))))
+}
+```
+
+## Taxa ASV Level
+
+```{r Taxa ASV Level}
+if.asv <- function(taxa.level){
+  if(taxa.level=="ASV"){
+    asv <- TRUE
+    taxa.level <- "Species"
+  }else{
+    asv <- FALSE
+  }
+  return(c(taxa.level, asv))
+}
+```
+
+## Add Families to Phyloseq
+
+```{r}
+add.families.phyloseq <- function(phyloseq){
+  sample.table <- sample.to.data.frame(phyloseq)
+  sample.table[, "family"] <- as.numeric(gsub('[a-z]*', "", gsub('[A-Z]*', "", sapply(row.names(sample.table), function(x) strsplit(x, "_")[[1]][1]))))
+  sample_data(phyloseq) <- sample.table
+  return(phyloseq)
+}
+```
+
+## Add Families to Phyloseq
+
+```{r}
+add.families.dataframe <- function(dataframe){
+  dataframe[, "family"] <- as.numeric(gsub('[a-z]*', "", gsub('[A-Z]*', "", sapply(row.names(dataframe), function(x) strsplit(x, "_")[[1]][1]))))
+  return(dataframe)
+}
+```
+
+## Identify Families
+
+```{r Identify Families}
+identify.families <- function(object){
+  if(class(object)=="phyloseq"){
+    return(as.character(sort(as.numeric(as.character(unique(unlist(as.data.frame(sample_data(object))[, "family"])))))))
+  }else if(class(object)=="data.frame"){
+    return(as.character(sort(as.numeric(as.character(unique(unlist(object[, "family"])))))))
+  }
+}
+```
+
+## Identify Type
+
+```{r}
+identify.type <- function(phyloseq){
+  return(uuln(sample_data(phyloseq)[, "type"]))
+}
+```
+
+## Row name
+
+```{r}
+row.name <- function(object, cell, column=NA){
+  if(class(object)=="phyloseq"){
+    samdf <- data.frame(sample_data(object))
+    if(is.na(column)){
+      for(a in 1:ncol(samdf)){
+        if(cell %in% samdf[, a]){
+          row.name <- rownames(samdf)[c(which(samdf[, a]==c(cell)))]
+        }
+      }
+    }else{
+      row.name <- rownames(samdf)[c(which(samdf[, column]==c(cell)))]
+    }
+  }else if(class(object)=="data.frame"){
+    if(is.na(column)){
+      for(a in 1:ncol(object)){
+        if(cell %in% object[, a]){
+          row.name <- rownames(object)[c(which(object[, a]==c(cell)))]
+        }
+      }
+    }else{
+      row.name <- rownames(object)[c(which(object[, column]==c(cell)))]
+    }
+  }
+  return(row.name)
+}
+```
+
+## Do Adonis
+
+```{r}
+doadonis<- function(phyloseq, distance=distance, factor) {
+        bdist <- phyloseq::distance(phyloseq, distance)
+        col <- as(sample_data(phyloseq), "data.frame")[, factor]
+        # Adonis test
+        adonis.bdist <- vegan::adonis(unname(bdist) ~ col)
+        p <- signif(as.data.frame(adonis.bdist[1])$aov.tab.Pr..F.[1], digits=2)
+        r2 <- signif(as.data.frame(adonis.bdist[1])$aov.tab.R2[1], digits=2)
+        
+              cat("\n      ", paste("p=", p))
+        res <- c(p, r2)
+        return(res)
+      }
+```
+
+## Subset Object *************
+
+```{r Subset Object}
+subset.object <- function(object, pheno, col.name=NULL, remove=FALSE){
+        # cat("\n  ", paste("Subset sample data by", pheno))
+  if(class(object)=="phyloseq"){
+      if(length(pheno)==1){
+      samdf <- data.frame(sample_data(object))
+      if(is.null(col.name)){
+        if(remove==FALSE){
+          for(a in 1:ncol(samdf)){
+            if(pheno %in% samdf[, a]){
+              sample_data(object) <- sample_data(object)[c(which(sample_data(object)[, a]==c(pheno))), ]
+            }
+          }
+        }else if(remove==TRUE){
+          for(a in 1:ncol(samdf)){
+            if(pheno %in% samdf[, a]){
+              sample_data(object) <- sample_data(object)[c(which(sample_data(object)[, a]!=c(pheno))), ]
+            }
+          }
+        }
+      }else{
+        if(remove==FALSE){
+          sample_data(object) <- sample_data(object)[c(which(sample_data(object)[, col.name]==c(pheno))), ]
+        }else if(remove==TRUE){
+          sample_data(object) <- sample_data(object)[c(which(sample_data(object)[, col.name]!=c(pheno))), ]
+        }
+      }
+      if(length(which(taxa_sums(object)!=0))!=0){
+        object <- prune_taxa(taxa_sums(object)!=0, object)
+      }
+    }else{
+      phyloseq.list <- list()
+      object.sub <- object
+      for(a in 1:length(pheno)){
+        samdf <- data.frame(sample_data(object))
+        if(is.null(col.name)){
+          if(remove==FALSE){
+            object.sub <- object
+            for(b in 1:ncol(samdf)){
+              if(pheno[a] %in% samdf[, b]){
+                sample_data(object.sub) <- sample_data(object)[c(which(sample_data(object)[, b]==c(pheno[a]))), ]
+              }
+            }
+          }else if(remove==TRUE){
+            for(a in 1:ncol(samdf)){
+              if(pheno[a] %in% samdf[, b]){
+                sample_data(object.sub) <- sample_data(object)[c(which(sample_data(object)[, b]!=c(pheno[a]))), ]
+              }
+            }
+          }
+        }else{
+          if(remove==FALSE){
+            if(pheno[a] %in% samdf[, col.name]){
+              if(exists("check.for.exist")==FALSE){
+                check.for.exist <- a
+              }
+              object.sub <- object
+              sample_data(object.sub) <- sample_data(object)[c(which(sample_data(object)[, col.name]==c(pheno[a]))), ]
+            }
+          }else if(remove==TRUE){
+            sample_data(object.sub) <- sample_data(object)[c(which(sample_data(object)[, col.name]!=c(pheno[a]))), ]
+          }
+        }
+        if(remove==FALSE){
+          if(length(which(taxa_sums(object.sub)!=0))!=0){
+            phyloseq.list[[a]] <- prune_taxa(taxa_sums(object.sub)!=0, object.sub)
+          }else{
+            phyloseq.list[[a]] <- object.sub
+          }
+          if(exists("check.for.exist")==TRUE){
+              if(a!=check.for.exist){
+              phyloseq.list[[check.for.exist]] <- merge_phyloseq(phyloseq.list[[check.for.exist]], phyloseq.list[[a]])
+            }
+          }
+        }
+      }
+      if(remove==FALSE){
+        if(exists("check.for.exist")==TRUE){
+          object <- phyloseq.list[[check.for.exist]]
+          if(length(which(taxa_sums(object)!=0))!=0){
+            object <- prune_taxa(taxa_sums(object)!=0, object)
+          }
+        }
+      }else if(remove==TRUE){
+        object <- object.sub
+        if(length(which(taxa_sums(object)!=0))!=0){
+          object <- prune_taxa(taxa_sums(object)!=0, object)
+        }
+      }
+    }
+  }else if(class(object)=="data.frame"){
+    object.og <- object
+    if(is.null(col.name)){
+      if(remove==FALSE){
+        if(length(pheno)>1){
+          for(a in 1:length(pheno)){
+            for(b in 1:ncol(object)){
+              if(pheno %in% object[, b]){
+                merge.object <- object.og[c(which(object.og[, b]==c(pheno[a]))), ]
+              }
+            }
+            if(a==1){
+              object <- merge.object
+            }else{
+              object <- rbind(object, merge.object)
+            }
+          }
+        }else{
+          for(a in 1:ncol(object)){
+            if(pheno %in% object[, a]){
+              object <- object[c(which(object[, a]==c(pheno))), ]
+            }
+          }
+        }
+      }else if(remove==TRUE){
+        for(a in 1:ncol(object)){
+          if(pheno %in% object[, a]){
+            object <- object[c(which(object[, a]!=c(pheno))), ]
+          }
+        }
+      }
+    }else{
+      if(remove==FALSE){
+        if(length(pheno)>1){
+          for(a in 1:length(pheno)){
+            merge.object <- object.og[c(which(object.og[, col.name]==c(pheno[a]))), ]
+            if(a==1){
+              object <- merge.object
+            }else{
+              object <- rbind(object, merge.object)
+            }
+          }
+        }else{
+          object <- object[c(which(object[, col.name]==c(pheno))), ]
+        }
+      }else if(remove==TRUE){
+        if(length(pheno)>1){
+          for(a in 1:length(pheno)){
+            object <- object[c(which(object[, col.name]!=c(pheno[a]))), ]
+          }
+        }else{
+          object <- object[c(which(object[, col.name]!=c(pheno))), ]
+        }
+      }
+    }
+  }
+  
+  return(object)
+}
+```
+
+## Replace NAN
+
+```{r Replace NAN}
+replace.nan <- function(dataframe, value){
+  dataframe[is.nan(dataframe)] <- value
+  return(dataframe)
+}
+```
+
+## Remove NAN
+
+```{r}
+remove.nan <- function(object, column=NA){
+  if(class(object)=="data.frame"){
+    if(!is.nan(column)){
+      if(length(which(is.nan(object[, column])==FALSE))!=nrow(object)){
+        object <- object[-c(which(is.nan(object[, column])==TRUE)), ]
+      }
+    }else{
+      for(a in 1:length(ncol(object))){
+          if(length(which(is.nan(object[, a])==FALSE))!=nrow(object)){
+          object <- object[-c(which(is.nan(object[, a])==TRUE)), ]
+        }
+      }
+    }
+  }else if(class(object)=="list"){
+    for(a in 1:length(list)){
+      if(length(which(is.nan(object)==FALSE))!=length(object)){
+        object <- object[-c(which(is.nan(object)==TRUE))]
+      }
+    }
+  }
+  return(object)
+}
+```
+
+## Replace NA
+
+```{r Replace NA}
+replace.na <- function(dataframe, value){
+  dataframe[is.na(dataframe)] <- value
+  return(dataframe)
+}
+```
+
+## Remove NA
+
+```{r}
+remove.na <- function(object, column=NA){
+  if(class(object)=="data.frame"){
+    if(!is.na(column)){
+      if(length(which(is.na(object[, column])==FALSE))!=nrow(object)){
+        object <- object[-c(which(is.na(object[, column])==TRUE)), ]
+      }
+    }else{
+      for(a in 1:length(ncol(object))){
+          if(length(which(is.na(object[, a])==FALSE))!=nrow(object)){
+          object <- object[-c(which(is.na(object[, a])==TRUE)), ]
+        }
+      }
+    }
+  }else if(class(object)=="list" || class(object)=="character"){
+    if(length(which(is.na(object)==FALSE))!=length(object)){
+      object <- object[-c(which(is.na(object)==TRUE))]
+    }
+  }else if(class(object)=="phyloseq"){
+    object.frame <- sample.to.data.frame(object)
+    non.na <- row.names(object.frame[c(which(is.na(object.frame[, column])==FALSE)), ])
+    object <- prune_samples(non.na, object)
+  }
+  return(object)
+}
+```
+
+
+## Remove duplicated
+
+```{r}
+remove.duped <- function(list){
+  return(list[-c(which(duplicated(list)))])
+}
+```
+
+
+## Replace 0
+
+```{r Replace 0}
+replace.0 <- function(dataframe, value){
+  dataframe[dataframe==0] <- value
+  return(dataframe)
+}
+```
+
+## Remove 0
+
+```{r}
+remove.0 <- function(data.frame, column){
+  if(length(which(data.frame[, column]==0))!=nrow(data.frame)){
+    data.frame <- data.frame[-c(which(data.frame[, column]==0)), ]
+  }
+  return(data.frame)
+}
+```
+
+## Remove taxa under 
+
+```{r}
+remove.taxa.under <- function(phyloseq, value){
+  phyloseq <- prune_taxa(taxa_sums(phyloseq)>value, phyloseq)
+  return(phyloseq)
+}
+```
+
+
+## Replace Specific
+
+```{r Replace 0}
+replace.specific <- function(list, value, replacement){
+  list[list==value] <- replacement
+  return(list)
+}
+```
+
+## ASV to Taxa
+
+```{r}
+asv.to.taxa <- function(phyloseq, asv, taxa.level){
+  if(length(asv)>1){
+    taxa <- c()
+    for(a in 1:length(asv)){
+      taxa[a] <- uln(data.frame(tax_table(phyloseq))[which(rownames(data.frame(tax_table(phyloseq)))==asv[a]), taxa.level])
+    }
+  }else{
+    taxa <- uln(data.frame(tax_table(phyloseq))[which(rownames(data.frame(tax_table(phyloseq)))==asv), taxa.level])
+  }
+  return(taxa)
+}
+```
+
+## Taxa to ASV
+
+```{r}
+taxa.to.asv <- function(phyloseq, taxa, taxa.level){
+  if(length(taxa)>1){
+    asv <- c()
+    for(a in 1:length(taxa)){
+      asv[a] <- rownames(data.frame(tax_table(phyloseq)))[which(data.frame(tax_table(phyloseq))[, taxa.level]==taxa)]
+    }
+  }else{
+    asv <- rownames(data.frame(tax_table(phyloseq)))[which(data.frame(tax_table(phyloseq))[, taxa.level]==taxa)]
+  }
+  return(asv)
+}
+```
+
+## Count taxa
+
+```{r}
+count.taxa <- function(phyloseq){
+  otu.frame <- otu.to.data.frame(phyloseq)
+  count.frame <- data.frame(rowSums(otu.frame!=0))
+  colnames(count.frame) <- "number of taxa"
+  return(count.frame)
+}
+```
+
+
+## Tax Table to Data Frame
+
+```{r}
+tax.to.data.frame <- function(phyloseq){
+  return(data.frame(tax_table(phyloseq)))
+}
+```
+
+## OTU Table to Data Frame
+
+```{r}
+otu.to.data.frame <- function(phyloseq){
+  return(data.frame(otu_table(phyloseq)))
+}
+```
+
+## Sample Data to Data Frame
+
+```{r}
+sample.to.data.frame <- function(phyloseq){
+  return(data.frame(sample_data(phyloseq)))
+}
+```
+
+## Combine Tax and OTU
+
+```{r}
+otu.tax <- function(phyloseq){
+  tax.table <- tax.to.data.frame(phyloseq)
+  otu.table <- otu.to.data.frame(phyloseq)
+  combined.table <- merge(tax.table, t(otu.table), by="row.names")
+  rownames(combined.table) <- combined.table[,"Row.names"]
+  combined.table <- combined.table[,-c(1)]
+  return(combined.table)
+}
+```
+
+<!-- ## Combine Pheno and OTU -->
+
+<!-- ```{r} -->
+<!-- pheno.otu <- function(phyloseq){ -->
+<!--   pheno.table <- sample.to.data.frame(phyloseq) -->
+<!--   pheno.table[,"sample"] <- row.names(pheno.table) -->
+<!--   otu.table <- otu.to.data.frame(phyloseq) -->
+<!--   otu.table[,"samID"] <- rownames(otu.table) -->
+<!--   combined.table <- merge(pheno.table, combined.table, by="samID") -->
+<!--   colnames(combined.table)[1] <- "samples" -->
+<!--   return(combined.table) -->
+<!-- } -->
+<!-- ``` -->
+
+
+## Combine Pheno, Tax, and OTU
+
+```{r}
+pheno.otu.tax <- function(phyloseq){
+  pheno.table <- sample.to.data.frame(phyloseq)
+  pheno.table[,"sample"] <- row.names(pheno.table)
+  # print(pheno.table)
+  tax.table <- tax.to.data.frame(phyloseq)
+  tax.table[,"asv"] <- rownames(tax.table)
+  otu.table <- otu.to.data.frame(phyloseq)
+  combined.table <- merge(tax.table, t(otu.table), by="row.names")
+  rownames(combined.table) <- combined.table[,"Row.names"]
+  combined.table <- combined.table[,-c(1)]
+  combined.table <- as.data.frame(pivot_longer(combined.table, c(9:ncol(combined.table)), names_to="sample", values_to="value"))
+  # row.names(combined.table) <- combined.table[,"sample"]
+  # print(pheno.table)
+  combined.table <- merge(pheno.table, combined.table, by="sample")
+  colnames(combined.table)[1] <- "samples"
+  return(combined.table)
+}
+```
+
+## Merge multiple frames
+```{r}
+merge.multi.frames <- function(frame.list, by, all=FALSE){
+  suppressWarnings(rm(merge.frame))
+  for(a in 2:length(frame.list)){
+    if(a==2){
+      merge.frame <- merge(frame.list[[1]], frame.list[[a]], by=by, all=all)
+    }else{
+      merge.frame <- merge(merge.frame, frame.list[[a]], by=by, all=all)
+    }
+    if(length(by)==1){
+      if(by=="row.names"){
+        rownames(merge.frame) <- merge.frame[,c("Row.names")]
+        merge.frame <- merge.frame[,-c(which.col.name(merge.frame, "Row.names"))]
+      }
+    }
+  }
+  return(merge.frame)
+}
+```
+
+
+## Form reassignment 
+
+```{r}
+form.reassign <- function(data.frame){
+  for(a in 1:nrow(data.frame)){
+    if(data.frame[a, "form"]=="I"){
+      data.frame[a, "form"] <- "Initial"
+    }else if(data.frame[a, "form"]=="F1"||data.frame[a, "form"]=="F"){
+      data.frame[a, "form"] <- "Follow up 1"
+    }else if(data.frame[a, "form"]=="F2"){
+      data.frame[a, "form"] <- "Follow up 2"
+    }else if(data.frame[a, "form"]=="F3"){
+      data.frame[a, "form"] <- "Follow up 3"
+    }else if(data.frame[a, "form"]=="F4"){
+      data.frame[a, "form"] <- "Follow up 4"
+    }
+  }
+  return(data.frame)
+}
+```
+
+## Sample type rename
+
+```{r}
+sample.type.rename <- function(phyloseq){
+  for(a in 1:nrow(sample_data(phyloseq))){
+    if(sample_data(phyloseq)[a, "type"]=="BNA"){
+      sample_data(phyloseq)[a, "type"] <- "Infant nasal"
+    }else if(sample_data(phyloseq)[a, "type"]=="BSA"){
+      sample_data(phyloseq)[a, "type"] <- "Infant saliva"
+    }else if(sample_data(phyloseq)[a, "type"]=="BST"){
+      sample_data(phyloseq)[a, "type"] <- "Infant stool"
+    }else if(sample_data(phyloseq)[a, "type"]=="MNA"){
+      sample_data(phyloseq)[a, "type"] <- "Mother nasal"
+    }else if(sample_data(phyloseq)[a, "type"]=="MSA"){
+      sample_data(phyloseq)[a, "type"] <- "Mother saliva"
+    }else if(sample_data(phyloseq)[a, "type"]=="MBM"){
+      sample_data(phyloseq)[a, "type"] <- "Mother milk"
+    }else if(sample_data(phyloseq)[a, "type"]=="MAS"){
+      sample_data(phyloseq)[a, "type"] <- "Mother skin"
+    }
+  }
+  return(phyloseq)
+}
+```
+
+## Round to 5
+```{r}
+round.to.5 <- function(number){
+  return((ceiling(number/5)*5))
+}
+```
+
+
+# Sigfill
+```{r}
+sigfill <- function(values, sigfigs=2, as.p=FALSE){
+  values <- uln(values)
+  out <- c()
+  if(!as.p){
+    for(a in 1:length(values)){
+      if(values[a]==1){
+        out[a] <- paste0("1.", paste0(rep(0, sigfigs), collapse=""))
+      }else if((values[a] < as.numeric(paste0("0.", paste0(rep(0, (sigfigs-1)), collapse=""), "1")))){
+        out[a] <- paste0("<0.", paste0(rep(0, (sigfigs-1)), collapse=""), "1")
+      }else{
+        sig.dec <- (which(strsplit(as.character(values[a]), "")[[1]]==".")-1)+sigfigs
+        out[a] <- formatC(round(values[a], digits=sigfigs), digits=sig.dec, format="fg", flag="#")
+        out[a] <- strtrim(out[a], sig.dec + c(1, 2)[grepl("-", out[a], fixed=TRUE) + 1])
+      }
+    }
+  }else{
+    for(a in 1:length(values)){
+      if(values[a]==1){
+        out[a] <- paste0("1.", paste0(rep(0, sigfigs), collapse=""))
+      }else if((values[a] < as.numeric(paste0("0.", paste0(rep(0, (sigfigs-1)), collapse=""), "1")))){
+        out[a] <- paste0("p<0.", paste0(rep(0, (sigfigs-1)), collapse=""), "1")
+      }else{
+        sig.dec <- (which(strsplit(as.character(values[a]), "")[[1]]==".")-1)+sigfigs
+        out[a] <- formatC(round(values[a], digits=sigfigs), digits=sig.dec, format="fg", flag="#")
+        out[a] <- paste0("p=", strtrim(out[a], sig.dec + c(1, 2)[grepl("-", out[a], fixed=TRUE) + 1]))
+      }
+    }
+  }
+  return(out)
+  # print(sig.dec)
+  # out <- gsub("\\.$", "",
+  #             formatC(round(values, digits=sigfigs),
+  #                     digits=which(strsplit(as.character(values), "")[[1]]==".")+1, format="fg", flag="#"))
+  # out[grepl(".", out, fixed=TRUE)] <- strtrim(out[grepl(".", out, fixed=TRUE)],
+  #                                               sig.dec + c(1, 2)[grepl("-", out, fixed=TRUE) + 1])
+  # return(out)
+}
+# sigfill(c(1000.453, 0.009))
+```
+
+
+# Trans Samples in Dataframe
+
+```{r}
+sample.type.rename.data.frame <- function(dataframe, column=NA){
+  if(is.na(column)){
+    for(a in 1:nrow(dataframe)){
+      if(dataframe[a, "Sink"]=="BNA"||dataframe[a, "Sink"]=="0BNA"||dataframe[a, "Sink"]=="WBNA"){
+        dataframe[a, "Sink"] <- "Infant nasal"
+      }else if(dataframe[a, "Sink"]=="BSA"||dataframe[a, "Sink"]=="0BSA"||dataframe[a, "Sink"]=="WBSA"){
+        dataframe[a, "Sink"] <- "Infant saliva"
+      }else if(dataframe[a, "Sink"]=="BST"||dataframe[a, "Sink"]=="0BST"||dataframe[a, "Sink"]=="WBST"){
+        dataframe[a, "Sink"] <- "Infant stool"
+      }
+      if(dataframe[a, "Source"]=="MNA"||dataframe[a, "Source"]=="0MNA"||dataframe[a, "Source"]=="WMNA"){
+        dataframe[a, "Source"] <- "Mother nasal"
+      }else if(dataframe[a, "Source"]=="MSA"||dataframe[a, "Source"]=="0MSA"||dataframe[a, "Source"]=="WMSA"){
+        dataframe[a, "Source"] <- "Mother saliva"
+      }else if(dataframe[a, "Source"]=="MBM"||dataframe[a, "Source"]=="0MBM"||dataframe[a, "Source"]=="WMBM"){
+        dataframe[a, "Source"] <- "Mother milk"
+      }else if(dataframe[a, "Source"]=="MAS"||dataframe[a, "Source"]=="0MAS"||dataframe[a, "Source"]=="WMAS"){
+        dataframe[a, "Source"] <- "Mother skin"
+      }
+    }
+  }else{
+    for(a in 1:nrow(dataframe)){
+      if(dataframe[a, column]=="BNA"||dataframe[a, column]=="0BNA"||dataframe[a, column]=="WBNA"){
+        dataframe[a, column] <- "Infant nasal"
+      }else if(dataframe[a, column]=="BSA"||dataframe[a, column]=="0BSA"||dataframe[a, column]=="WBSA"){
+        dataframe[a, column] <- "Infant saliva"
+      }else if(dataframe[a, column]=="BST"||dataframe[a, column]=="0BST"||dataframe[a, column]=="WBST"){
+        dataframe[a, column] <- "Infant stool"
+      }
+      if(dataframe[a, column]=="MNA"||dataframe[a, column]=="0MNA"||dataframe[a, column]=="WMNA"){
+        dataframe[a, column] <- "Mother nasal"
+      }else if(dataframe[a, column]=="MSA"||dataframe[a, column]=="0MSA"||dataframe[a, column]=="WMSA"){
+        dataframe[a, column] <- "Mother saliva"
+      }else if(dataframe[a, column]=="MBM"||dataframe[a, column]=="0MBM"||dataframe[a, column]=="WMBM"){
+        dataframe[a, column] <- "Mother milk"
+      }else if(dataframe[a, column]=="MAS"||dataframe[a, column]=="0MAS"||dataframe[a, column]=="WMAS"){
+        dataframe[a, column] <- "Mother skin"
+      }
+    }
+  }
+  
+  return(dataframe)
+}
+```
+
+
+## Data Summary
+
+```{r}
+data.summary <- function(data, varname, groupnames){
+  require(plyr)
+  summary_func <- function(x, col){
+    c(mean=mean(x[[col]], na.rm=TRUE),
+      sd=sd(x[[col]], na.rm=TRUE))
+  }
+  data_sum <- ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  data_sum <- rename(data_sum, c("mean"=varname))
+ return(data_sum)
+}
+```
+
+
+## Add number of taxa
+
+```{r}
+add.taxa.number <- function(phyloseq){
+  sample_data(phyloseq)[, "samID"] <- sample_names(phyloseq)
+  sample.frame <- sample.to.data.frame(phyloseq)
+  for(a in 1:nrow(sample.to.data.frame(phyloseq))){
+    phyloseq.sub <- subset.object(phyloseq, sample.frame[a,"samID"], "samID")
+    sample.frame.sub <- sample.to.data.frame(phyloseq.sub)
+    sample_data(phyloseq)[rownames(sample.frame)[a], "taxa.number"] <- sum(otu.to.data.frame(phyloseq.sub) != 0)
+  }
+  sample_data(phyloseq) <- sample_data(phyloseq)[, -c(which(colnames(sample_data(phyloseq))=="samID"))]
+  return(phyloseq)
+}
+```
+
+## Which Col Name
+
+```{r}
+which.col.name <- function(dataframe, col.name){
+  return(which(colnames(dataframe)==col.name))
+}
+```
+
+## Round to
+
+```{r}
+round.to <- function(value, to, top.bottom=NA){
+  if(is.na(top.bottom)){
+    return(round(value/to)*to)
+  }else if(top.bottom=="top"){
+    return(ceiling(value/to)*to)
+  }else if(top.bottom=="bottom"){
+    return(floor(value/to)*to)
+  }
+}
+```
+
+## Find break limit
+
+```{r}
+find.break.limit <- function(value){
+  if(value<=500000){
+    test <- TRUE
+    a <- 1
+    while(test){
+      if(value<=(500000/(a)) && value>=(200000/(a))){
+        test <- FALSE
+        return((100000/(a)))
+      }else if(value<=(200000/(a)) && value>=(100000/(a))){
+        test <- FALSE
+        return((50000/(a)))
+      }else if(value<=(100000/(a)) && value>(50000/(a))){
+        test <- FALSE
+        return((25000/(a)))
+      }
+      a <- (a*10)
+    }
+  }
+}
+```
+
+```{r}
+### Reassign NA to unclassified ###
+na.to.unclassified <- function(phyloseq){
+        cat("\n  ", paste("Reassign NA to unclassified"))
+  na.table <- as.data.frame(tax_table(phyloseq))
+  for(i in 1:nrow(tax_table(phyloseq))){
+    for(j in 2:7){
+      if(is.na(tax_table(phyloseq)[i, j])){
+        k=j
+        for(k in k:7){
+          tax_table(phyloseq)[i, k] <- paste(tax_table(phyloseq)[i, j-1], "Unclassified", 
+                                              colnames(tax_table(phyloseq))[j], rownames(tax_table(phyloseq))[i])
+        }
+      }
+    }
+  }
+  tax_table(phyloseq) <- tax_table(phyloseq)[!is.na(tax_table(phyloseq)[, 1]), ]
+  return(phyloseq)
+}
+```
+
+## Reword unclassified
+```{r}
+reword.unclassified <- function(phyloseq){
+  phyloseq.tax <- phyloseq
+  tax <- tax_table(phyloseq.tax)
+  for(a in 1:nrow(tax)){
+    if(str_detect(tax[a, "Species"], "Unclassified")==TRUE){
+      tax[a, "Species"] <- paste("Unclassified", str_split(tax[a, "Species"], " Unclassified ")[[1]][1])
+    }
+    if(str_detect(tax[a, "Genus"], "Unclassified")==TRUE){
+      if(str_detect(tax[a, "Genus"], "Bacteria")==TRUE){
+        tax[a, "Genus"] <- paste("Unclassified", str_split(str_split(tax[a, "Genus"], " Unclassified ")[[1]][2], " ")[[1]][2])
+      }else{
+        tax[a, "Genus"] <- paste0("Unclassified\n", str_split(tax[a, "Genus"], " Unclassified ")[[1]][1], " ",
+                                 str_split(str_split(tax[a, "Genus"], " Unclassified ")[[1]][2], " ")[[1]][2])
+      }
+    }
+    # if(str_detect(tax[a, "Phylum"], "Unclassified")==TRUE){
+    #   if(str_detect(tax[a, "Phylum"], "Bacteria")==TRUE){
+    #     tax[a, "Phylum"] <- paste("Unclassified", str_split(str_split(tax[a, "Phylum"], " Unclassified ")[[1]][2], " ")[[1]][2])
+    #   }else{
+    #     tax[a, "Phylum"] <- paste0("Unclassified\n", str_split(tax[a, "Phylum"], " Unclassified ")[[1]][1], " ",
+    #                              str_split(str_split(tax[a, "Phylum"], " Unclassified ")[[1]][2], " ")[[1]][2])
+    #   }
+    # }
+  }
+  tax_table(phyloseq.tax) <- tax_table(tax)
+  return(phyloseq.tax)
+}
+```
+
+# Color Functions 
+
+## Color List
+
+```{r Color List}
+color.list <- function(n, other=FALSE){
+  # colors <- c("#900000", "#B34A00", "#C9AB00", "#2A6116", "#001BA5", "#4F02A0", "#6902A0")
+  # colors <- c("#900000", "#B34A00", "#C9AB00", "#2A6116", "#001BA5", "#4F02A0", "#8302A0")
+  # colors <- c("#900000", "#B34A00", "#C9AB00", "#2A6116", "#001BA5", "#4F02A0", "#9602A0")
+  colors <- c("#900000", "#B34A00", "#C9AB00", "#2A6116", "#001BA5", "#4F02A0", "#A00281")
+  if(other==TRUE){
+    colors <- c("#900000", "#B34A00", "#C9AB00", "#2A6116", "#165061", "#001BA5", "#4F02A0", "#A00281", "#382417")
+  }
+  
+  color.list <- "#FFFFFF00"
+  for(a in 1:length(colors)){
+    my_col_alpha_all <- character()
+    if(n<=5){
+      offset=(0+0.5)
+      my_col_alpha_all <- adjustcolor(colors[a], offset=c(offset, offset, offset, offset))
+    }else if(n==20){
+      for(b in 1:3) {
+        offset=(0+((b-1)*0.25))
+        my_col_alpha_all[b] <- adjustcolor(colors[a], offset=c(offset, offset, offset, offset))
+      }
+    }else{
+      # for(b in 1:(ceiling(n/20)*3)){
+      for(b in 1:(ceiling(n/7))){
+        offset=(0+((b-1)*(0.25/ceiling(n/25))))
+        my_col_alpha_all[b] <- adjustcolor(colors[a], offset=c(offset, offset, offset, offset))
+      }
+    }
+    # show_col(my_col_alpha_all)
+    color.list <- c(color.list, my_col_alpha_all)
+  }
+  # set.seed(872436)
+  # x_rand <- sample(color.list)
+  # show_col(color.list)
+  return(color.list)
+}
+```
+
+## Color List Gradient
+
+```{r Color List Gradient}
+color.list.grad <- function(n, color.list){
+  color <- c(color.list)
+  color.grad <- c()
+  if(length(color.list)==1){
+    for(a in 1:(n)){
+      offset=(0+((a-1)/((n)+2)))
+      color.grad[a] <- adjustcolor(color.list[1], offset=c(offset, offset, offset, offset))
+    }
+  }else if(length(color.grad)==1){
+    for(a in 1:(n/2)){
+      offset=(0+((a-1)/((n/2)+2)))
+      color.grad[a] <- adjustcolor(color.list[1], offset=c(offset, offset, offset, offset))
+    }
+    for(b in (n/2):(n)){
+      offset=(0+(((b-(n/2))-1)/((n/2)+2)))
+      color.grad[(n/2)+(n-b)] <- adjustcolor(color.list[2], offset=c(offset, offset, offset, offset))
+    }
+  }
+  
+  # show_col(color.grad)
+  return(color.grad)
+}
+
+show_col(color.list.grad(8,color.list(20)[2]))
+# color.list.grad(46)
+```
